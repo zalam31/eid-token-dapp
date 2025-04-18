@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ethers } from "ethers";
+import { BrowserProvider, Contract, parseUnits, formatUnits } from "ethers";
 import "./App.css";
 
 const CONTRACT_ADDRESS = "0xD18D73850aA841D7B63d31333b7b68458210E8A1";
@@ -32,30 +32,30 @@ function App() {
   }
 
   async function loadTokenInfo() {
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+    const provider = new BrowserProvider(window.ethereum);
+    const contract = new Contract(CONTRACT_ADDRESS, ABI, provider);
     setTokenName(await contract.name());
     setSymbol(await contract.symbol());
   }
 
   async function getBalance() {
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+    const provider = new BrowserProvider(window.ethereum);
+    const contract = new Contract(CONTRACT_ADDRESS, ABI, provider);
     const bal = await contract.balanceOf(wallet);
-    setBalance(ethers.utils.formatUnits(bal, 18));
+    setBalance(formatUnits(bal, 18));
   }
 
   async function sendTokens() {
     try {
       setStatus("جاري التحويل...");
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
-      const tx = await contract.transfer(recipient, ethers.utils.parseUnits(amount, 18));
+      const provider = new BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
+      const tx = await contract.transfer(recipient, parseUnits(amount, 18));
       await tx.wait();
       setStatus("✅ تم التحويل بنجاح!");
       getBalance();
-      loadTransfers(wallet, setTransfers);
+      loadTransfers(wallet);
     } catch (error) {
       setStatus("❌ خطأ: " + error.message);
     }
@@ -85,12 +85,12 @@ function App() {
     }
   }
 
-  async function loadTransfers(wallet, setTransfers) {
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+  async function loadTransfers(walletAddress) {
+    const provider = new BrowserProvider(window.ethereum);
+    const contract = new Contract(CONTRACT_ADDRESS, ABI, provider);
 
-    const filterFrom = contract.filters.Transfer(wallet, null);
-    const filterTo = contract.filters.Transfer(null, wallet);
+    const filterFrom = contract.filters.Transfer(walletAddress, null);
+    const filterTo = contract.filters.Transfer(null, walletAddress);
 
     const [sentEvents, receivedEvents] = await Promise.all([
       contract.queryFilter(filterFrom, -10000),
@@ -104,7 +104,7 @@ function App() {
     const mapped = all.map((event) => ({
       from: event.args.from,
       to: event.args.to,
-      amount: ethers.utils.formatUnits(event.args.amount, 18),
+      amount: formatUnits(event.args.amount, 18),
       tx: event.transactionHash
     }));
 
@@ -114,7 +114,7 @@ function App() {
   useEffect(() => {
     if (wallet) {
       getBalance();
-      loadTransfers(wallet, setTransfers);
+      loadTransfers(wallet);
     }
   }, [wallet]);
 
@@ -134,7 +134,7 @@ function App() {
             <p className="text-center">💰 الرصيد: {balance} {symbol}</p>
 
             <button
-              onClick={() => loadTransfers(wallet, setTransfers)}
+              onClick={() => loadTransfers(wallet)}
               className="w-full bg-gray-200 text-sm py-1 rounded"
             >
               🔄 تحديث سجل التحويلات
